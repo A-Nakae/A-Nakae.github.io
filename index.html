@@ -60,6 +60,8 @@
   .ans .k{font-family:var(--mono);color:var(--good);font-weight:600}
   .acc{color:var(--muted);font-size:12.5px;margin-top:6px;font-family:var(--mono)}
   .okbadge{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .againbox{display:flex;align-items:center;gap:7px;margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);font-size:13px;color:var(--muted);cursor:pointer}
+  .againbox input{width:17px;height:17px}
   .done{border:1px solid var(--good);border-radius:12px;padding:26px;text-align:center;background:var(--good-tint)}
   .backup{margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--surface)}
   .backup summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--accent-deep)}
@@ -76,12 +78,13 @@
 <section id="home">
   <header class="mast">
     <h1>🎯 English Practice — 総復習ハブ</h1>
-    <p class="sub">全レッスン横断の総復習と、レッスン別ドリルをここから。<b>一度正解した問題は二度と出ません</b>(通常1回・★最重要のみ2回で引退)。繰り返すのは間違えた問題だけ。進捗はこの端末のブラウザに保存され、いつでも続きから積み上がります。</p>
+    <p class="sub">全レッスン横断の総復習と、レッスン別ドリルをここから。<b>一度正解した問題は二度と出ません</b>(通常1回・★最重要のみ2回で引退)。繰り返すのは間違えた問題と、<b>あなたが🔁チェックした問題だけ</b>。進捗はこの端末のブラウザに保存され、いつでも続きから積み上がります。</p>
     <div class="statgrid">
       <div class="stat"><b id="hLessons">–</b>レッスン</div>
       <div class="stat"><b id="hTotal">–</b>総問題数</div>
       <div class="stat"><b id="hActive">–</b>出題対象</div>
       <div class="stat"><b id="hRetired">–</b>引退済み</div>
+      <div class="stat"><b id="hAgain">–</b>🔁 再出題予約</div>
       <div class="stat"><b id="hImp">–</b>★最重要</div>
     </div>
     <div class="cta">
@@ -148,15 +151,18 @@ var LESSONS=[{"lid":"weekend-plans-smalltalk","date":"2026-05-27","label":"Weeke
   function save(s){try{localStorage.setItem(KEY,JSON.stringify(s));}catch(e){}}
   var stats=load();
   function recOk(q){var r=stats[q.id];return r&&r.ok||0;}
-  function retired(q){return recOk(q)>=target(q);}
+  function wantsAgain(q){var r=stats[q.id];return !!(r&&r.again);}
+  function retired(q){return !wantsAgain(q) && recOk(q)>=target(q);}
 
   // ---------- HOME ----------
   function refreshHome(){
     var ret=POOL.filter(retired).length, imp=POOL.filter(function(q){return q.imp;}).length;
+    var ag=POOL.filter(wantsAgain).length;
     $("#hLessons").textContent=LESSONS.length;
     $("#hTotal").textContent=POOL.length;
     $("#hActive").textContent=POOL.length-ret;
     $("#hRetired").textContent=ret;
+    $("#hAgain").textContent=ag;
     $("#hImp").textContent=imp;
   }
   function lessonDone(L){return L.qs.every(function(i){return retired(POOL[i]);});}
@@ -234,17 +240,29 @@ var LESSONS=[{"lid":"weekend-plans-smalltalk","date":"2026-05-27","label":"Weeke
     var nav=el("div","row");nav.style.marginTop="12px";
     var bn=el("button","btn primary","次へ ▶");bn.style.display="none";
     nav.appendChild(bn);card.appendChild(nav);
+    var hadAgain=wantsAgain(q);
+    var agRow=el("label","againbox");
+    var agc=document.createElement("input"); agc.type="checkbox"; agc.checked=hadAgain;
+    agRow.appendChild(agc);
+    agRow.appendChild(document.createTextNode(" 🔁 この問題をもう一度出す（正解しても引退させない）"));
+    agc.addEventListener("change",function(){
+      var r=stats[q.id]||(stats[q.id]={ok:0,miss:0});
+      if(agc.checked)r.again=true; else delete r.again;
+      save(stats);
+    });
+    card.appendChild(agRow);
     st.appendChild(card);inp.focus();
     function commit(){
       var ok=q.ans.some(function(a){return norm(a)===norm(inp.value);});
       var r=stats[q.id]||(stats[q.id]={ok:0,miss:0});
       if(ok)r.ok=(r.ok||0)+1; else r.miss=(r.miss||0)+1;
+      if(hadAgain){delete r.again; agc.checked=false;}
       save(stats);
       answered=true;attempts++;bc.disabled=true;inp.readOnly=true;
       fb.className="fb show "+(ok?"ok":"no");
       if(ok){
-        var justRetired = r.ok===target(q);
-        fb.textContent="✓ 正解!"+(justRetired?" 🎓 "+target(q)+"回正解——引退しました。":"");
+        var justRetired = r.ok>=target(q) && !r.again;
+        fb.textContent="✓ 正解!"+(justRetired?" 🎓 引退しました（🔁にチェックすれば戻せます）。":"");
         card.classList.add("correct");masteredCount++;
       }else{
         fb.textContent="✗ 不正解。このセッション内で正解するまで再出題されます。";
@@ -298,7 +316,9 @@ var LESSONS=[{"lid":"weekend-plans-smalltalk","date":"2026-05-27","label":"Weeke
       var incoming=JSON.parse(v), n=0;
       for(var k in incoming){
         var a=stats[k]||{ok:0,miss:0}, b=incoming[k]||{};
-        stats[k]={ok:Math.max(a.ok||0,b.ok||0),miss:Math.max(a.miss||0,b.miss||0)}; n++;
+        var m={ok:Math.max(a.ok||0,b.ok||0),miss:Math.max(a.miss||0,b.miss||0)};
+        if(a.again||b.again)m.again=true;
+        stats[k]=m; n++;
       }
       save(stats); refreshHome(); renderList($("#search").value);
       $("#importBox").value=""; $("#storeState").textContent="✓ 復元しました（"+n+" 問の記録を反映）。";
