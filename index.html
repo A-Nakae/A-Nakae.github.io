@@ -6,6 +6,8 @@
 <title>総復習ハブ — English Practice</title>
 </head>
 <body style="margin:0">
+<!--BUILD:7e79489f7e-->
+<div id="updBanner" hidden style="position:fixed;left:0;right:0;bottom:0;z-index:99;padding:14px 16px;background:#2E7D5B;color:#fff;font:600 14.5px 'Segoe UI',system-ui,sans-serif;text-align:center;cursor:pointer">🆕 新しいレッスンが届きました — ここをタップで更新（進捗は消えません）</div>
 <style>
   :root{--paper:#F7F7F9;--surface:#FFFFFF;--ink:#1D1D24;--muted:#5D5D6A;--line:#E5E5EC;--line-soft:#EEEEF3;--accent:#33354A;--accent-deep:#22233A;--accent-tint:#ECEDF3;--good:#2E7D5B;--good-tint:#E6F2EC;--bad:#BB4430;--star:#B0842E;--serif:Georgia,serif;--sans:"Segoe UI",system-ui,-apple-system,sans-serif;--mono:ui-monospace,Consolas,monospace;}
   *{box-sizing:border-box}
@@ -347,6 +349,27 @@ var LESSONS=[{"lid":"weekend-plans-smalltalk","date":"2026-05-27","label":"Weeke
   $("#storeState").textContent = storageOK()
     ? "自動保存：有効。この端末に進捗が保存されます（それでも時々コピーで控えを取ると安心）。"
     : "⚠ この画面では自動保存が使えません（アプリ内ブラウザの可能性）。Safari/Chrome で開くか、下の『進捗をコピー』で控えを取ってください。";
+
+  // ---------- SELF-UPDATE (page refreshes itself when a new build is published) ----------
+  var BUILD="7e79489f7e", updFound=null;
+  function applyUpdate(){ location.replace(location.pathname+"?v="+(updFound||Date.now())); }
+  function checkUpdate(){
+    try{
+      fetch(location.pathname+"?chk="+Math.random(),{cache:"no-store",headers:{"Range":"bytes=0-4095"}})
+        .then(function(r){return r.text();})
+        .then(function(t){
+          var m=t.match(/BUILD:([0-9a-f]{6,})/);
+          if(m && m[1]!==BUILD){
+            updFound=m[1];
+            if($("#drill").hidden){ applyUpdate(); }            // on home: refresh silently
+            else{ $("#updBanner").hidden=false; }               // mid-drill: offer a tap
+          }
+        }).catch(function(){});
+    }catch(e){}
+  }
+  $("#updBanner").addEventListener("click",applyUpdate);
+  document.addEventListener("visibilitychange",function(){ if(!document.hidden) checkUpdate(); });
+  checkUpdate();
 
   refreshHome(); renderList(""); show("home");
 })();
