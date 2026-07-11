@@ -369,6 +369,7 @@ var LESSONS=[{"lid":"weekend-plans-smalltalk","date":"2026-05-27","label":"Weeke
   }
   $("#updBanner").addEventListener("click",applyUpdate);
   document.addEventListener("visibilitychange",function(){ if(!document.hidden) checkUpdate(); });
+  setInterval(function(){ if(!document.hidden) checkUpdate(); }, 180000);
   checkUpdate();
 
   refreshHome(); renderList(""); show("home");
